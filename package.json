@@ -41,9 +41,9 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/yourusername/csv-viewer.git"
+    "url": "https://github.com/nielsrolf/csv-viewer.git"
   },
-  "publisher": "YourPublisherName",
+  "publisher": "nielsrolf",
   "dependencies": {
     "csv-parse": "^5.5.6"
   }
