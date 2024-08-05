@@ -155,7 +155,7 @@ class CsvPreviewPanel {
         console.log('CSV Viewer: Parsed CSV file', rows);
         const headers = rows[0];
         const data = rows.slice(1);
-
+    
         return `
             <!DOCTYPE html>
             <html lang="en">
@@ -164,31 +164,101 @@ class CsvPreviewPanel {
                 <meta name="viewport" content="width=device-width, initial-scale=1.0">
                 <title>CSV Preview</title>
                 <style>
-                    body { font-family: Arial, sans-serif; }
-                    table { border-collapse: collapse; }
-                    th, td { border: 1px solid #ddd; padding: 8px; min-width: 200px; max-width: 200px; overflow: hidden; }
-                    th { background-color: #f2f2f2; }
-                    #selected-cell { padding: 10px; background-color: #f9f9f9; border: 1px solid #ddd; margin-bottom: 20px; }
+                    body { 
+                        font-family: Arial, sans-serif; 
+                        margin: 0;
+                        padding: 0;
+                    }
+                    .container {
+                        display: flex;
+                        flex-direction: column;
+                        height: 100vh;
+                    }
+                    .table-container {
+                        flex-grow: 1;
+                        overflow: auto;
+                    }
+                    table { 
+                        border-collapse: collapse; 
+                    }
+                    th, td { 
+                        border: 1px solid #ddd; 
+                        padding: 8px; 
+                        min-width: 200px; 
+                        max-width: 200px; 
+                    }
+                    th { 
+                        background-color: black;
+                        color: white;
+                        position: sticky;
+                        top: 0;
+                        z-index: 10;
+                    }
+                    .row-number {
+                        position: sticky;
+                        left: 0;
+                        background-color: black;
+                        color: white;
+                        z-index: 5;
+                        width: 50px;
+                        min-width: 50px;
+                        max-width: 50px;
+                    }
+                    th.row-number {
+                        z-index: 15;
+                    }
+                    tr {
+                        height: 1.2em;
+                        overflow: hidden;
+                    }
+                    tr.expanded {
+                        height: auto;
+                    }
+                    td {
+                        white-space: nowrap;
+                        overflow: hidden;
+                        text-overflow: ellipsis;
+                    }
+                    tr.expanded td {
+                        white-space: normal;
+                        overflow: visible;
+                    }
                 </style>
             </head>
             <body>
-                <div id="selected-cell"></div>
-                <table>
-                    <thead>
-                        <tr>${headers.map(header => `<th>${header}</th>`).join('')}</tr>
-                    </thead>
-                    <tbody>
-                        ${data.map(row => `
-                            <tr>${row.map(cell => `<td>${cell}</td>`).join('')}</tr>
-                        `).join('')}
-                    </tbody>
-                </table>
+                <div class="container">
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th class="row-number">#</th>
+                                    ${headers.map(header => `<th>${header}</th>`).join('')}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${data.map((row, index) => `
+                                    <tr>
+                                        <td class="row-number">${index + 1}</td>
+                                        ${row.map(cell => `<td>${cell}</td>`).join('')}
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
                 <script>
-                    const cells = document.querySelectorAll('td');
-                    const selectedCell = document.getElementById('selected-cell');
-                    cells.forEach(cell => {
-                        cell.addEventListener('click', () => {
-                            selectedCell.textContent = cell.textContent;
+                    const rows = document.querySelectorAll('tbody tr');
+                    rows.forEach(row => {
+                        const cells = row.querySelectorAll('td:not(.row-number)');
+                        cells.forEach(cell => {
+                            cell.addEventListener('click', () => {
+                                if (row.classList.contains('expanded')) {
+                                    row.classList.remove('expanded');
+                                } else {
+                                    rows.forEach(r => r.classList.remove('expanded'));
+                                    row.classList.add('expanded');
+                                }
+                            });
                         });
                     });
                 </script>
