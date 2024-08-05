@@ -2,6 +2,8 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as parse from 'csv-parse/sync';
 
+
+
 export function activate(context: vscode.ExtensionContext) {
     console.log('CSV Viewer is now active!');
 
@@ -145,7 +147,7 @@ class CsvPreviewPanel {
     }
     
 
-    private _getHtmlForWebview(documentUri?: vscode.Uri) {
+    private _getHtmlForWebview(documentUri?: vscode.Uri): string {
         if (!documentUri) {
             return `<html><body>No CSV file selected</body></html>`;
         }
@@ -164,69 +166,17 @@ class CsvPreviewPanel {
                 <meta name="viewport" content="width=device-width, initial-scale=1.0">
                 <title>CSV Preview</title>
                 <style>
-                    body { 
-                        font-family: Arial, sans-serif; 
-                        margin: 0;
-                        padding: 0;
-                    }
-                    .container {
-                        display: flex;
-                        flex-direction: column;
-                        height: 100vh;
-                    }
-                    .table-container {
-                        flex-grow: 1;
-                        overflow: auto;
-                    }
-                    table { 
-                        border-collapse: collapse; 
-                    }
-                    th, td { 
-                        border: 1px solid #ddd; 
-                        padding: 8px; 
-                        min-width: 200px; 
-                        max-width: 200px; 
-                    }
-                    th { 
-                        background-color: black;
-                        color: white;
-                        position: sticky;
-                        top: 0;
-                        z-index: 10;
-                    }
-                    .row-number {
-                        position: sticky;
-                        left: 0;
-                        background-color: black;
-                        color: white;
-                        z-index: 5;
-                        width: 50px;
-                        min-width: 50px;
-                        max-width: 50px;
-                    }
-                    th.row-number {
-                        z-index: 15;
-                    }
-                    tr {
-                        height: 1.2em;
-                        overflow: hidden;
-                    }
-                    tr.expanded {
-                        height: auto;
-                    }
-                    td {
-                        white-space: nowrap;
-                        overflow: hidden;
-                        text-overflow: ellipsis;
-                    }
-                    tr.expanded td {
-                        white-space: normal;
-                        overflow: visible;
-                    }
+                    ${this._getStyles()}
                 </style>
             </head>
             <body>
                 <div class="container">
+                    <div class="search-container">
+                        <input type="text" id="searchInput" placeholder="Search...">
+                        <span id="searchInfo"></span>
+                        <button id="prevButton">Previous</button>
+                        <button id="nextButton">Next</button>
+                    </div>
                     <div class="table-container">
                         <table>
                             <thead>
@@ -247,23 +197,192 @@ class CsvPreviewPanel {
                     </div>
                 </div>
                 <script>
-                    const rows = document.querySelectorAll('tbody tr');
-                    rows.forEach(row => {
-                        const cells = row.querySelectorAll('td:not(.row-number)');
-                        cells.forEach(cell => {
-                            cell.addEventListener('click', () => {
-                                if (row.classList.contains('expanded')) {
-                                    row.classList.remove('expanded');
-                                } else {
-                                    rows.forEach(r => r.classList.remove('expanded'));
-                                    row.classList.add('expanded');
-                                }
-                            });
-                        });
-                    });
+                    ${this._getJavaScript()}
                 </script>
             </body>
             </html>
+        `;
+    }
+
+    private _getStyles(): string {
+        return `
+            body { 
+                font-family: Arial, sans-serif; 
+                margin: 0;
+                padding: 0;
+            }
+            .container {
+                display: flex;
+                flex-direction: column;
+                height: 100vh;
+            }
+            .search-container {
+                padding: 10px;
+                background-color: #f0f0f0;
+                display: flex;
+                align-items: center;
+            }
+            #searchInput {
+                flex-grow: 1;
+                margin-right: 10px;
+                padding: 5px;
+            }
+            #searchInfo {
+                margin-right: 10px;
+            }
+            .table-container {
+                flex-grow: 1;
+                overflow: auto;
+            }
+            table { 
+                border-collapse: collapse; 
+            }
+            th, td { 
+                border: 1px solid #ddd; 
+                padding: 8px; 
+                min-width: 200px; 
+                max-width: 200px; 
+            }
+            th { 
+                background-color: black;
+                color: white;
+                position: sticky;
+                top: 0;
+                z-index: 10;
+            }
+            .row-number {
+                position: sticky;
+                left: 0;
+                background-color: black;
+                color: white;
+                z-index: 5;
+                width: 50px;
+                min-width: 50px;
+                max-width: 50px;
+            }
+            th.row-number {
+                z-index: 15;
+            }
+            tr {
+                height: 1.2em;
+                overflow: hidden;
+            }
+            tr.expanded {
+                height: auto;
+            }
+            td {
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+            tr.expanded td {
+                white-space: normal;
+                overflow: visible;
+            }
+            .highlight {
+                background-color: yellow;
+            }
+        `;
+    }
+    
+    private _getJavaScript(): string {
+        return `
+            const rows = document.querySelectorAll('tbody tr');
+            
+            function expandRow(row) {
+                rows.forEach(r => r.classList.remove('expanded'));
+                row.classList.add('expanded');
+            }
+    
+            rows.forEach(row => {
+                const cells = row.querySelectorAll('td:not(.row-number)');
+                cells.forEach(cell => {
+                    cell.addEventListener('click', (event) => {
+                        // Prevent click event when selecting text
+                        if (window.getSelection().toString().length === 0) {
+                            if (row.classList.contains('expanded')) {
+                                row.classList.remove('expanded');
+                            } else {
+                                expandRow(row);
+                            }
+                        }
+                    });
+    
+                    // Prevent collapsing when mouseup occurs after text selection
+                    cell.addEventListener('mouseup', (event) => {
+                        if (window.getSelection().toString().length > 0) {
+                            event.stopPropagation();
+                        }
+                    });
+                });
+            });
+
+            // Search functionality
+            const searchInput = document.getElementById('searchInput');
+            const searchInfo = document.getElementById('searchInfo');
+            const prevButton = document.getElementById('prevButton');
+            const nextButton = document.getElementById('nextButton');
+            let currentMatchIndex = -1;
+            let matches = [];
+
+            function performSearch() {
+                const searchTerm = searchInput.value.toLowerCase();
+                matches = [];
+                document.querySelectorAll('.highlight').forEach(el => el.classList.remove('highlight'));
+                rows.forEach(row => row.classList.remove('expanded'));
+                
+                if (searchTerm) {
+                    document.querySelectorAll('tbody td:not(.row-number)').forEach((cell, index) => {
+                        const cellText = cell.textContent.toLowerCase();
+                        if (cellText.includes(searchTerm)) {
+                            matches.push(cell);
+                            cell.innerHTML = cell.textContent.replace(new RegExp(searchTerm, 'gi'), match => '<span class="highlight">' + match + '</span>');
+                        }
+                    });
+                }
+
+                currentMatchIndex = matches.length > 0 ? 0 : -1;
+                updateSearchInfo();
+                highlightCurrentMatch();
+            }
+
+            function updateSearchInfo() {
+                searchInfo.textContent = matches.length > 0 
+                    ? \`\${currentMatchIndex + 1} of \${matches.length} matches\` 
+                    : 'No matches found';
+            }
+
+            function highlightCurrentMatch() {
+                if (currentMatchIndex >= 0 && currentMatchIndex < matches.length) {
+                    const currentCell = matches[currentMatchIndex];
+                    currentCell.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    expandRow(currentCell.closest('tr'));
+                }
+            }
+
+            searchInput.addEventListener('input', performSearch);
+            prevButton.addEventListener('click', () => {
+                if (matches.length > 0) {
+                    currentMatchIndex = (currentMatchIndex - 1 + matches.length) % matches.length;
+                    updateSearchInfo();
+                    highlightCurrentMatch();
+                }
+            });
+            nextButton.addEventListener('click', () => {
+                if (matches.length > 0) {
+                    currentMatchIndex = (currentMatchIndex + 1) % matches.length;
+                    updateSearchInfo();
+                    highlightCurrentMatch();
+                }
+            });
+
+            // Handle Cmd+F (or Ctrl+F) to focus on search input
+            document.addEventListener('keydown', (e) => {
+                if ((e.metaKey || e.ctrlKey) && e.key === 'f') {
+                    e.preventDefault();
+                    searchInput.focus();
+                }
+            });
         `;
     }
 }
