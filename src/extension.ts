@@ -146,7 +146,6 @@ class CsvPreviewPanel {
         });
     }
     
-
     private _getHtmlForWebview(documentUri?: vscode.Uri): string {
         if (!documentUri) {
             return `<html><body>No CSV file selected</body></html>`;
@@ -182,14 +181,14 @@ class CsvPreviewPanel {
                             <thead>
                                 <tr>
                                     <th class="row-number">#</th>
-                                    ${headers.map(header => `<th>${header}</th>`).join('')}
+                                    ${headers.map(header => `<th>${this._escapeHtml(header)}</th>`).join('')}
                                 </tr>
                             </thead>
                             <tbody>
                                 ${data.map((row, index) => `
                                     <tr>
                                         <td class="row-number">${index + 1}</td>
-                                        ${row.map(cell => `<td>${cell}</td>`).join('')}
+                                        ${row.map(cell => `<td><div class="cell-content">${this._escapeHtml(cell)}</div></td>`).join('')}
                                     </tr>
                                 `).join('')}
                             </tbody>
@@ -203,7 +202,17 @@ class CsvPreviewPanel {
             </html>
         `;
     }
-
+    
+    private _escapeHtml(unsafe: string): string {
+        return unsafe
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;")
+            .replace(/\n/g, "<br>");
+    }
+    
     private _getStyles(): string {
         return `
             body { 
@@ -265,19 +274,22 @@ class CsvPreviewPanel {
             }
             tr {
                 height: 1.2em;
-                overflow: hidden;
             }
             tr.expanded {
                 height: auto;
             }
             td {
-                white-space: nowrap;
+                vertical-align: top;
+            }
+            .cell-content {
+                white-space: pre-wrap;
                 overflow: hidden;
                 text-overflow: ellipsis;
+                max-height: 1.2em;
+                transition: max-height 0.3s ease-out;
             }
-            tr.expanded td {
-                white-space: normal;
-                overflow: visible;
+            tr.expanded .cell-content {
+                max-height: none;
             }
             .highlight {
                 background-color: yellow;
@@ -316,7 +328,7 @@ class CsvPreviewPanel {
                     });
                 });
             });
-
+    
             // Search functionality
             const searchInput = document.getElementById('searchInput');
             const searchInfo = document.getElementById('searchInfo');
@@ -324,7 +336,7 @@ class CsvPreviewPanel {
             const nextButton = document.getElementById('nextButton');
             let currentMatchIndex = -1;
             let matches = [];
-
+    
             function performSearch() {
                 const searchTerm = searchInput.value.toLowerCase();
                 matches = [];
@@ -332,7 +344,7 @@ class CsvPreviewPanel {
                 rows.forEach(row => row.classList.remove('expanded'));
                 
                 if (searchTerm) {
-                    document.querySelectorAll('tbody td:not(.row-number)').forEach((cell, index) => {
+                    document.querySelectorAll('tbody td:not(.row-number) .cell-content').forEach((cell, index) => {
                         const cellText = cell.textContent.toLowerCase();
                         if (cellText.includes(searchTerm)) {
                             matches.push(cell);
@@ -340,18 +352,18 @@ class CsvPreviewPanel {
                         }
                     });
                 }
-
+    
                 currentMatchIndex = matches.length > 0 ? 0 : -1;
                 updateSearchInfo();
                 highlightCurrentMatch();
             }
-
+    
             function updateSearchInfo() {
                 searchInfo.textContent = matches.length > 0 
                     ? \`\${currentMatchIndex + 1} of \${matches.length} matches\` 
                     : 'No matches found';
             }
-
+    
             function highlightCurrentMatch() {
                 if (currentMatchIndex >= 0 && currentMatchIndex < matches.length) {
                     const currentCell = matches[currentMatchIndex];
@@ -359,7 +371,7 @@ class CsvPreviewPanel {
                     expandRow(currentCell.closest('tr'));
                 }
             }
-
+    
             searchInput.addEventListener('input', performSearch);
             prevButton.addEventListener('click', () => {
                 if (matches.length > 0) {
@@ -375,7 +387,7 @@ class CsvPreviewPanel {
                     highlightCurrentMatch();
                 }
             });
-
+    
             // Handle Cmd+F (or Ctrl+F) to focus on search input
             document.addEventListener('keydown', (e) => {
                 if ((e.metaKey || e.ctrlKey) && e.key === 'f') {
