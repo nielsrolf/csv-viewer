@@ -5,35 +5,37 @@ import * as parse from 'csv-parse/sync';
 
 
 export function activate(context: vscode.ExtensionContext) {
-    console.log('CSV Viewer is now active!');
+    console.log('CSV/JSONL Viewer is now active!');
 
     let disposable = vscode.commands.registerCommand('csvViewer.openPreview', () => {
-        console.log('CSV Viewer: openPreview command triggered');
+        console.log('CSV/JSONL Viewer: openPreview command triggered');
         const editor = vscode.window.activeTextEditor;
         if (editor) {
-            console.log(`CSV Viewer: Active file is ${editor.document.fileName}`);
-            console.log(`CSV Viewer: File language ID is ${editor.document.languageId}`);
+            console.log(`CSV/JSONL Viewer: Active file is ${editor.document.fileName}`);
+            console.log(`CSV/JSONL Viewer: File language ID is ${editor.document.languageId}`);
             
-            // Check if the file is CSV, Dynamic CSV, or looks like CSV
+            // Check if the file is CSV, JSONL, or looks like CSV
             const isCsvFile = editor.document.languageId === 'csv' ||
                               editor.document.languageId === 'dynamic-csv' ||
                               editor.document.fileName.toLowerCase().endsWith('.csv') || 
                               looksLikeCsv(editor.document.getText());
             
-            if (isCsvFile) {
-                console.log('CSV Viewer: CSV file detected, creating preview');
+            const isJsonlFile = editor.document.fileName.toLowerCase().endsWith('.jsonl');
+
+            if (isCsvFile || isJsonlFile) {
+                console.log('CSV/JSONL Viewer: CSV or JSONL file detected, creating preview');
                 try {
                     CsvPreviewPanel.createOrShow(context.extensionUri, editor.document.uri);
                 } catch (error) {
-                    console.error('CSV Viewer: Error creating preview', error);
+                    console.error('CSV/JSONL Viewer: Error creating preview', error);
                 }
             } else {
-                console.log('CSV Viewer: File does not appear to be CSV');
-                vscode.window.showInformationMessage('The current file does not appear to be a CSV file.');
+                console.log('CSV/JSONL Viewer: File does not appear to be CSV or JSONL');
+                vscode.window.showInformationMessage('The current file does not appear to be a CSV or JSONL file.');
             }
         } else {
-            console.log('CSV Viewer: No file is currently active');
-            vscode.window.showInformationMessage('Please open a CSV file before using the CSV Viewer');
+            console.log('CSV/JSONL Viewer: No file is currently active');
+            vscode.window.showInformationMessage('Please open a CSV or JSONL file before using the Viewer');
         }
     });
 
@@ -42,7 +44,7 @@ export function activate(context: vscode.ExtensionContext) {
     if (vscode.window.registerWebviewPanelSerializer) {
         vscode.window.registerWebviewPanelSerializer(CsvPreviewPanel.viewType, {
             async deserializeWebviewPanel(webviewPanel: vscode.WebviewPanel, state: any) {
-                console.log('CSV Viewer: Deserializing webview panel');
+                console.log('CSV/JSONL Viewer: Deserializing webview panel');
                 CsvPreviewPanel.revive(webviewPanel, context.extensionUri);
             }
         });
@@ -139,21 +141,47 @@ class CsvPreviewPanel {
         }
     }
 
+    private _parseFile(documentUri: vscode.Uri): string[][] {
+        const content = fs.readFileSync(documentUri.fsPath, 'utf8');
+        if (documentUri.fsPath.toLowerCase().endsWith('.jsonl')) {
+            return this._parseJSONL(content);
+        } else {
+            return this._parseCSV(content);
+        }
+    }
+
     private _parseCSV(content: string): string[][] {
         return parse.parse(content, {
             columns: false,
             skip_empty_lines: true
         });
     }
+
+    private _parseJSONL(content: string): string[][] {
+        const lines = content.split('\n').filter(line => line.trim() !== '');
+        const jsonObjects: Record<string, any>[] = lines.map(line => JSON.parse(line));
+        
+        // Get all unique keys from all objects
+        const allKeys = Array.from(new Set(jsonObjects.reduce<string[]>((keys, obj) => keys.concat(Object.keys(obj)), [])));
+        
+        // Create header row
+        const headers = allKeys;
+        
+        // Create data rows
+        const data = jsonObjects.map(obj => 
+            allKeys.map(key => obj[key] !== undefined ? JSON.stringify(obj[key]) : '')
+        );
+        
+        return [headers, ...data];
+    }
     
     private _getHtmlForWebview(documentUri?: vscode.Uri): string {
         if (!documentUri) {
-            return `<html><body>No CSV file selected</body></html>`;
+            return `<html><body>No file selected</body></html>`;
         }
     
-        const csvContent = fs.readFileSync(documentUri.fsPath, 'utf8');
-        const rows = this._parseCSV(csvContent);
-        console.log('CSV Viewer: Parsed CSV file', rows);
+        const rows = this._parseFile(documentUri);
+        console.log('CSV/JSONL Viewer: Parsed file', rows);
         const headers = rows[0];
         const data = rows.slice(1);
     
@@ -163,7 +191,7 @@ class CsvPreviewPanel {
             <head>
                 <meta charset="UTF-8">
                 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                <title>CSV Preview</title>
+                <title>CSV/JSONL Preview</title>
                 <style>
                     ${this._getStyles()}
                 </style>
